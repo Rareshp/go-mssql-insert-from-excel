@@ -17,3 +17,9 @@ The script will prompt the user for a few details such as:
 - file name
 
 For close inspection, each sheet in inserted one at the time with user permission.
+
+
+To build for Windows:
+```
+env GOOS=windows GOARCH=amd64 go build
+```
