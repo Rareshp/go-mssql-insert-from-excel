@@ -224,6 +224,9 @@ func main() {
           return
         }
       }
+      // basically Dream Reports "SELECT Limit 1" on trans ids
+      Transaction_Id += 1
+      Transfer_Id += 1
     }
 
     fmt.Printf("The script inserted / updated %d rows in the %s table", rowNumber, tableName)
