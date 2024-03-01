@@ -10,6 +10,7 @@ import (
     "github.com/xuri/excelize/v2"
     "database/sql"
     _ "github.com/denisenkom/go-mssqldb"
+    "time"
 )
 
 func getUserInput(text string) (string, error) {
@@ -185,11 +186,13 @@ func main() {
         Transfer_Id = 1 
         Transaction_Id = 1
       }
+      fmt.Printf("Preparing to insert %d rows, starting insert at Transfer_Id: %d  and Transaction_Id: %d", len(collectedRows), Transfer_Id, Transaction_Id)
+      fmt.Println()
 
       rowNumber += len(collectedRows)
 
       // skip first row
-      for _, row := range collectedRows[1:] {
+      for i, row := range collectedRows[1:] {
         // value needs to be integer, not string
         value := 0.0
 
@@ -203,27 +206,38 @@ func main() {
           // this prevents value not used
           value = convValue
         }
+
+        // now I need to insert at midnight, thus UTC is a day before
+        day, err := time.Parse("2006-01-02", row[1])
+        if err != nil {
+          fmt.Println("Error parsing date:", err)
+          fmt.Println("for this row: ", row, "with row number:", i)
+          continue
+        }
+        dayBefore := day.AddDate(0,0, -1)
+        dayBeforeStr := dayBefore.Format("2006-01-02")
+        dayStr := day.Format("2006-01-02")
+
         // Use this if you do not want to skip existing rows or update them
         // query := fmt.Sprintf("INSERT INTO %s (Orig_TS_UTC, Orig_TS_Local, Last_Op_TS_UTC, Last_Op_TS_Local, Tag_Name, Num_Value, Operation_Type, Status, Transfer_Id, Transaction_Id, [User]) VALUES ('%s 00:00:00.000', '%s 02:00:00:000', SYSUTCDATETIME(), SYSDATETIME(), '%s', %d, 1, 1, %d, %d, 'goepher')", 
         //   tableName, row[1], row[1], row[0], value, Transfer_Id, Transaction_Id)
 
         query := fmt.Sprintf(`
           MERGE INTO %s AS target
-          USING (VALUES ('%s 00:00:00.000', '%s 02:00:00:000', SYSUTCDATETIME(), SYSDATETIME(), '%s', %f, 1, 1, %d, %d, 'goepher')) AS source (Orig_TS_UTC, Orig_TS_Local, Last_Op_TS_UTC, Last_Op_TS_Local, Tag_Name, Num_Value, Operation_Type, Status, Transfer_Id, Transaction_Id, [User])
+          USING (VALUES ('%s 22:00:00.000', '%s 00:00:00:000', SYSUTCDATETIME(), SYSDATETIME(), '%s', %f, 1, 1, %d, %d, 'goepher')) AS source (Orig_TS_UTC, Orig_TS_Local, Last_Op_TS_UTC, Last_Op_TS_Local, Tag_Name, Num_Value, Operation_Type, Status, Transfer_Id, Transaction_Id, [User])
           ON target.Orig_TS_Local = source.Orig_TS_Local AND target.Tag_Name = source.Tag_Name
           WHEN MATCHED THEN
             UPDATE SET target.Num_Value = source.Num_Value
           WHEN NOT MATCHED THEN
             INSERT (Orig_TS_UTC, Orig_TS_Local, Last_Op_TS_UTC, Last_Op_TS_Local, Tag_Name, Num_Value, Operation_Type, Status, Transfer_Id, Transaction_Id, [User])
             VALUES (source.Orig_TS_UTC, source.Orig_TS_Local, source.Last_Op_TS_UTC, source.Last_Op_TS_Local, source.Tag_Name, source.Num_Value, source.Operation_Type, source.Status, source.Transfer_Id, source.Transaction_Id, source.[User]);
-        `, tableName, row[1], row[1], row[0], value, Transfer_Id, Transaction_Id)
+        `, tableName, dayBeforeStr, dayStr, row[0], value, Transfer_Id, Transaction_Id)
 
         _, err = db.Exec(query)
         if err != nil {
           fmt.Println(err)
           return
         }
-        // TODO: upgrade the query to a bulk commit instead
         // basically Dream Reports "SELECT Limit 1" on trans ids
         Transaction_Id += 1
         Transfer_Id += 1
