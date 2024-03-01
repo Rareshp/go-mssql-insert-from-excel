@@ -223,10 +223,11 @@ func main() {
           fmt.Println(err)
           return
         }
+        // TODO: upgrade the query to a bulk commit instead
+        // basically Dream Reports "SELECT Limit 1" on trans ids
+        Transaction_Id += 1
+        Transfer_Id += 1
       }
-      // basically Dream Reports "SELECT Limit 1" on trans ids
-      Transaction_Id += 1
-      Transfer_Id += 1
     }
 
     fmt.Printf("The script inserted / updated %d rows in the %s table", rowNumber, tableName)
